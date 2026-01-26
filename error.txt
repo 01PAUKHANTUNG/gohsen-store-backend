@@ -1,0 +1,13 @@
+file:///C:/Users/User/Desktop/Goshen%20Website/backend/node_modules/stripe/esm/stripe.core.js:155
+                throw new Error('Neither apiKey nor config.authenticator provided');
+                      ^
+
+Error: Neither apiKey nor config.authenticator provided
+    at Stripe._setAuthenticator (file:///C:/Users/User/Desktop/Goshen%20Website/backend/node_modules/stripe/esm/stripe.core.js:155:23)
+    at new Stripe (file:///C:/Users/User/Desktop/Goshen%20Website/backend/node_modules/stripe/esm/stripe.core.js:93:14)
+    at file:///C:/Users/User/Desktop/Goshen%20Website/backend/routes/orderRoute.js:6:16
+    at ModuleJob.run (node:internal/modules/esm/module_job:271:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:547:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+
+Node.js v22.12.0

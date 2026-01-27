@@ -1,14 +1,14 @@
-import {v2 as cloudinary} from 'cloudinary'
+import { v2 as cloudinary } from 'cloudinary'
 import productModel from '../models/productModels.js';
 import fs from 'fs'
 
 
 //addProduct
-const addProduct = async (req, res)=>{
+const addProduct = async (req, res) => {
 
-    console.log("working productIamge ")
-   try {
-    const {description, price, category, subCategory, bestSelling, newArrive, stockAvaiable } = req.body
+  console.log("working productIamge ")
+  try {
+    const { description, price, category, subCategory, bestSelling, newArrive, stockAvaiable } = req.body
 
     const image1 = req.files.image1 && req.files?.image1?.[0];
     const image2 = req.files.image2 && req.files?.image2?.[0];
@@ -16,42 +16,43 @@ const addProduct = async (req, res)=>{
     const image4 = req.files.image4 && req.files?.image4?.[0];
 
 
-    const images = [image1,image2,image3, image4].filter((item)=>item !== undefined);
+    const images = [image1, image2, image3, image4].filter((item) => item !== undefined);
 
-   let imagesUrl = await Promise.all(
-      images.map(async (item)=>{
-         let result = await cloudinary.uploader.upload(item.path,{resource_type:
+    let imagesUrl = await Promise.all(
+      images.map(async (item) => {
+        let result = await cloudinary.uploader.upload(item.path, {
+          resource_type:
             'image'
-         })
-         return result.secure_url
+        })
+        return result.secure_url
       })
-   )
+    )
 
-   const productData = {
-      image : imagesUrl,
+    const productData = {
+      image: imagesUrl,
       description,
       category,
       subCategory,
-      price : Number(price),
-      bestSelling : bestSelling === "true" ? true : false,
-      stockAvaiable : stockAvaiable === "true" ? true :false,
-      newArrive :  newArrive === "true" ? true :false,
-      date : Date.now()
-   }
-   
+      price: Number(price),
+      bestSelling: bestSelling === "true" ? true : false,
+      stockAvaiable: stockAvaiable === "true" ? true : false,
+      newArrive: newArrive === "true" ? true : false,
+      date: Date.now()
+    }
+
     const product = new productModel(productData)
 
     await product.save();
 
-    res.json({success: true, message : "Product Added"})
+    res.json({ success: true, message: "Product Added" })
 
-   } catch (error) {
-    res.json({success:false, message:error.message})
-   }
+  } catch (error) {
+    res.json({ success: false, message: error.message })
+  }
 }
 
 //update 
- const updateProduct = async (req, res) => {
+const updateProduct = async (req, res) => {
   try {
     const { id } = req.params
 
@@ -78,9 +79,10 @@ const addProduct = async (req, res)=>{
     product.bestSelling = bestSelling
     product.newArrive = newArrive
     product.stockAvaiable = stockAvaiable
+    product.date = Date.now()
 
-    
-     /* ===== UPDATE IMAGE ===== */
+
+    /* ===== UPDATE IMAGE ===== */
     if (req.files?.image1) {
       const result = await cloudinary.uploader.upload(
         req.files.image1[0].path,
@@ -108,28 +110,28 @@ const addProduct = async (req, res)=>{
 }
 
 //listProduct
-const listProduct = async (req, res)=>{
-     try {
-      const products = await productModel.find({});
-      res.json({success:true, products})
-      
-   } catch (error) {
-      console.log(error)
-      res.json({success:false, message:error.message})
-   } 
+const listProduct = async (req, res) => {
+  try {
+    const products = await productModel.find({}).sort({ date: -1 });
+    res.json({ success: true, products })
+
+  } catch (error) {
+    console.log(error)
+    res.json({ success: false, message: error.message })
+  }
 }
 
 //removeProduct
-const removeProduct = async (req, res)=>{
-    try {
-      await productModel.findByIdAndDelete(req.body.id)
+const removeProduct = async (req, res) => {
+  try {
+    await productModel.findByIdAndDelete(req.body.id)
 
-      res.json({success:true, message:"product Removed"})
-   } catch (error) {
+    res.json({ success: true, message: "product Removed" })
+  } catch (error) {
 
-      console.log(error)
-      res.json({success:false, message:error.message})
-   }
+    console.log(error)
+    res.json({ success: false, message: error.message })
+  }
 }
 
-export {addProduct, listProduct, removeProduct, updateProduct}
+export { addProduct, listProduct, removeProduct, updateProduct }

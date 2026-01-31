@@ -52,34 +52,13 @@ orderRouter.post("/stripe-intent", authUser, async (req, res) => {
         const { items, address, amount, userId } = req.body;
 
         if (!stripe) {
+
             console.warn("⚠️ Stripe key missing - Using SIMULATED SUCCESS for Embedded Form.");
-
-            // 1. Create Order as PAID immediately (since we are skipping the form)
-            const mappedItems = items.map(item => ({
-                _id: item._id,
-                name: item.description || item.name || "Product",
-                price: item.price,
-                quantity: item.quantity,
-                image: Array.isArray(item.image) ? item.image[0] : item.image
-            }));
-
-            const newOrder = new orderModel({
-                userId,
-                items: mappedItems,
-                shippingAddress: address,
-                amount,
-                paymentMethod: "Stripe (Simulated)",
-                paymentStatus: "paid"
-            });
-            await newOrder.save();
-
-            // 2. Clear Cart
-            await userModel.findByIdAndUpdate(userId, { cartData: [] });
 
             // 3. Tell frontend to skip directly to success
             return res.json({
-                success: true,
-                isSimulated: true,
+                success: false,
+                isSimulated: false,
                 message: "Stripe key missing - Simulated Order Created"
             });
         }
@@ -87,7 +66,7 @@ orderRouter.post("/stripe-intent", authUser, async (req, res) => {
         // 1️⃣ Create Payment Intent
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(amount * 100),
-            currency: "usd",
+            currency: "aud",
             automatic_payment_methods: { enabled: true },
             metadata: { userId }
         });
@@ -156,34 +135,44 @@ orderRouter.post("/stripe", authUser, async (req, res) => {
         if (!stripe) {
             console.warn("⚠️ Stripe key missing - Using SIMULATED SUCCESS for development testing.");
 
-            // 1. Simluate payment success in DB
-            order.paymentStatus = "paid";
-            await order.save();
-
-            // 2. Clear Cart on Backend
-            await userModel.findByIdAndUpdate(userId, { cartData: [] });
-
             // 3. Redirect user directly to success page
             return res.json({
-                success: true,
+                success: false,
                 message: "Stripe Simulated Success (No key found)",
-                session_url: `${process.env.FRONTEND_URL}/order-success`
+
             });
         }
 
+        const lineItems = mappedItems.map(item => {
+            return {
+                price_data: {
+                    currency: "aud",
+                    product_data: { name: item.name },
+                    unit_amount: Math.round(item.price * 100),
+
+                },
+                quantity: item.quantity
+            }
+        })
+
+        lineItems.push({
+            price_data: {
+                currency: "aud",
+                product_data: { name: "Delivery Fee" },
+                unit_amount: 2000,
+            },
+            quantity: 1
+        })
+
+        console.log(lineItems)
         // 2️⃣ Create Stripe session
+
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             mode: "payment",
 
-            line_items: mappedItems.map(item => ({
-                price_data: {
-                    currency: "usd",
-                    product_data: { name: item.name },
-                    unit_amount: Math.round(item.price * 100),
-                },
-                quantity: item.quantity
-            })),
+            line_items: lineItems,
+
 
             success_url: `${process.env.FRONTEND_URL}/order-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.FRONTEND_URL}/order-cancel`,
@@ -197,6 +186,8 @@ orderRouter.post("/stripe", authUser, async (req, res) => {
         order.stripeSessionId = session.id;
         await order.save();
 
+        // Clear Cart on Backend
+        await userModel.findByIdAndUpdate(userId, { cartData: [] });
         res.json({ success: true, session_url: session.url });
 
     } catch (error) {
@@ -222,6 +213,60 @@ orderRouter.post("/verify-stripe", authUser, async (req, res) => {
         }
     } catch (error) {
         console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+});
+
+// Securely Verify Stripe Session
+orderRouter.post('/verifyStripe', authUser, async (req, res) => {
+    try {
+        const { session_id, userId } = req.body;
+
+        if (!session_id || !stripe) {
+            return res.json({ success: false, message: "Invalid Request or Stripe not initialized" });
+        }
+
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+
+        if (!session) {
+            return res.json({ success: false, message: "Session not found" });
+        }
+
+        const orderId = session.metadata?.orderId;
+        if (!orderId) {
+            return res.json({ success: false, message: "Order ID missing from session metadata" });
+        }
+
+        // Fetch the order to verify ownership and existing status
+        const order = await orderModel.findById(orderId);
+        if (!order) {
+            return res.json({ success: false, message: "Order not found" });
+        }
+
+        // Security Check: Ensure the user verifying the order owns it
+        if (order.userId.toString() !== userId) {
+            return res.json({ success: false, message: "Unauthorized: Order belongs to another user" });
+        }
+
+        // Idempotency: If already paid, return success immediately
+        if (order.paymentStatus === 'paid') {
+            return res.json({ success: true, message: "Order already paid" });
+        }
+
+        if (session.payment_status === 'paid') {
+            // Update Order Status
+            await orderModel.findByIdAndUpdate(orderId, { paymentStatus: "paid" });
+
+            // Clear Cart
+            await userModel.findByIdAndUpdate(userId, { cartData: [] });
+
+            res.json({ success: true, message: "Payment Verified Successfully" });
+        } else {
+            res.json({ success: false, message: "Payment not completed" });
+        }
+
+    } catch (error) {
+        console.error("Stripe Verification Error:", error);
         res.json({ success: false, message: error.message });
     }
 });

@@ -43,9 +43,9 @@ contactRouter.post("/add", async (req, res) => {
 contactRouter.post("/user-inquiries", authUser, async (req, res) => {
     try {
         const { userId } = req.body;
-        console.log("Fetching inquiries for UID:", userId);
+        //console.log("Fetching inquiries for UID:", userId);
         const messages = await contactModel.find({ userId }).sort({ date: -1 });
-        console.log("Inquiries found count:", messages.length);
+        // console.log("Inquiries found count:", messages.length);
         res.json({ success: true, messages });
     } catch (error) {
         console.log(error);
@@ -56,9 +56,9 @@ contactRouter.post("/user-inquiries", authUser, async (req, res) => {
 // Route for admin to list all messages
 contactRouter.post("/list", adminAuth, async (req, res) => {
     try {
-        console.log("Admin: Fetching contact messages...");
+        //console.log("Admin: Fetching contact messages...");
         const messages = await contactModel.find({}).sort({ date: -1 });
-        console.log("Admin: Messages found:", messages.length);
+        //console.log("Admin: Messages found:", messages.length);
         res.json({ success: true, messages });
     } catch (error) {
         console.log(error);

@@ -8,14 +8,30 @@ import adminAuth from "../middelware/adminAuth.js";
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const orderRouter = express.Router();
 
-// Placing order using COD Method
-orderRouter.post("/place", authUser, async (req, res) => {
+// Helper function to get userId if token exists
+const getUserIdFromToken = (req) => {
+    const { token } = req.headers;
+    if (!token) return null;
     try {
-        const { items, address, amount, userId } = req.body;
-        console.log("COD Order Request received. Total:", amount, "User:", userId);
+        const decoded = jwt.verify(token, process.env.JWT_SECREATE);
+        return decoded.id;
+    } catch (error) {
+        return null;
+    }
+};
+
+import jwt from 'jsonwebtoken';
+
+// Placing order using COD Method
+orderRouter.post("/place", async (req, res) => {
+    try {
+        const { items, address, amount } = req.body;
+        const userId = getUserIdFromToken(req);
+
+        // console.log("COD Order Request received. Total:", amount, "User:", userId || "Guest");
 
         const orderData = {
-            userId,
+            userId, // will be null for guest
             items: items.map(item => ({
                 _id: item._id,
                 name: item.description || item.name || "Product",
@@ -33,12 +49,15 @@ orderRouter.post("/place", authUser, async (req, res) => {
         const newOrder = new orderModel(orderData);
         await newOrder.save();
 
-        // Clear Cart on Backend
-        await userModel.findByIdAndUpdate(userId, { cartData: [] });
+        // Clear Cart on Backend ONLY if user resides
+        if (userId) {
+            await userModel.findByIdAndUpdate(userId, { cartData: [] });
+            //console.log("Cart cleared for user:", userId);
+        }
 
-        console.log("COD Order saved and cart cleared for user:", userId);
+        //console.log("COD Order saved");
 
-        res.json({ success: true, message: "Order Placed Successfully" });
+        res.json({ success: true, message: "Order Placed Successfully", order: newOrder });
 
     } catch (error) {
         console.error("COD Order Error:", error);
@@ -47,9 +66,10 @@ orderRouter.post("/place", authUser, async (req, res) => {
 });
 
 // Placing order using Stripe Method (Embedded Form)
-orderRouter.post("/stripe-intent", authUser, async (req, res) => {
+orderRouter.post("/stripe-intent", async (req, res) => {
     try {
-        const { items, address, amount, userId } = req.body;
+        const { items, address, amount } = req.body;
+        const userId = getUserIdFromToken(req);
 
         if (!stripe) {
 
@@ -68,7 +88,7 @@ orderRouter.post("/stripe-intent", authUser, async (req, res) => {
             amount: Math.round(amount * 100),
             currency: "aud",
             automatic_payment_methods: { enabled: true },
-            metadata: { userId }
+            metadata: { userId: userId || "guest" }
         });
 
         // 2️⃣ Create Pending Order
@@ -109,10 +129,12 @@ orderRouter.post("/stripe-intent", authUser, async (req, res) => {
 });
 
 // Placing order using Stripe Method
-orderRouter.post("/stripe", authUser, async (req, res) => {
+orderRouter.post("/stripe", async (req, res) => {
     try {
-        const { items, address, amount, userId } = req.body;
-        console.log("Stripe Order Request received. Total:", amount, "User:", userId);
+        const { items, address, amount } = req.body;
+        const userId = getUserIdFromToken(req);
+
+        console.log("Stripe Order Request received. Total:", amount, "User:", userId || "Guest");
 
         const mappedItems = items.map(item => ({
             _id: item._id,
@@ -187,7 +209,9 @@ orderRouter.post("/stripe", authUser, async (req, res) => {
         await order.save();
 
         // Clear Cart on Backend
-        await userModel.findByIdAndUpdate(userId, { cartData: [] });
+        if (userId) {
+            await userModel.findByIdAndUpdate(userId, { cartData: [] });
+        }
         res.json({ success: true, session_url: session.url });
 
     } catch (error) {
@@ -200,7 +224,7 @@ orderRouter.post("/stripe", authUser, async (req, res) => {
 orderRouter.post("/verify-stripe", authUser, async (req, res) => {
     try {
         const { orderId, success } = req.body;
-        console.log("Verifying Order:", orderId, "Success:", success);
+        //console.log("Verifying Order:", orderId, "Success:", success);
 
         if (success === "true" || success === true) {
             await orderModel.findByIdAndUpdate(orderId, { paymentStatus: "paid" });
@@ -218,9 +242,10 @@ orderRouter.post("/verify-stripe", authUser, async (req, res) => {
 });
 
 // Securely Verify Stripe Session
-orderRouter.post('/verifyStripe', authUser, async (req, res) => {
+orderRouter.post('/verifyStripe', async (req, res) => {
     try {
-        const { session_id, userId } = req.body;
+        const { session_id } = req.body;
+        const userId = getUserIdFromToken(req);
 
         if (!session_id || !stripe) {
             return res.json({ success: false, message: "Invalid Request or Stripe not initialized" });
@@ -243,8 +268,8 @@ orderRouter.post('/verifyStripe', authUser, async (req, res) => {
             return res.json({ success: false, message: "Order not found" });
         }
 
-        // Security Check: Ensure the user verifying the order owns it
-        if (order.userId.toString() !== userId) {
+        // Security Check: If order has a user, ensure the requesting user owns it
+        if (order.userId && order.userId.toString() !== userId) {
             return res.json({ success: false, message: "Unauthorized: Order belongs to another user" });
         }
 
@@ -257,10 +282,12 @@ orderRouter.post('/verifyStripe', authUser, async (req, res) => {
             // Update Order Status
             await orderModel.findByIdAndUpdate(orderId, { paymentStatus: "paid" });
 
-            // Clear Cart
-            await userModel.findByIdAndUpdate(userId, { cartData: [] });
+            // Clear Cart if user
+            if (userId) {
+                await userModel.findByIdAndUpdate(userId, { cartData: [] });
+            }
 
-            res.json({ success: true, message: "Payment Verified Successfully" });
+            res.json({ success: true, message: "Payment Verified Successfully", order });
         } else {
             res.json({ success: false, message: "Payment not completed" });
         }

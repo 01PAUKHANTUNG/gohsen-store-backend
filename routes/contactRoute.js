@@ -90,4 +90,16 @@ contactRouter.post("/mark-read", authUser, async (req, res) => {
     }
 });
 
+// Route to remove a contact message
+contactRouter.post("/remove", adminAuth, async (req, res) => {
+    try {
+        const { id } = req.body;
+        await contactModel.findByIdAndDelete(id);
+        res.json({ success: true, message: "Message deleted successfully" });
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+});
+
 export default contactRouter;

@@ -312,14 +312,106 @@ orderRouter.post("/list", adminAuth, async (req, res) => {
 orderRouter.post("/status", adminAuth, async (req, res) => {
     try {
         const { orderId, status } = req.body;
-        await orderModel.findByIdAndUpdate(orderId, { status });
+
+        console.log("\n" + "=".repeat(60));
+        console.log("📦 ORDER STATUS UPDATE REQUEST");
+        console.log("=".repeat(60));
+
+        // Fetch the order to check payment method
+        const order = await orderModel.findById(orderId);
+
+        if (!order) {
+            console.log("❌ Order not found!");
+            return res.json({ success: false, message: "Order not found" });
+        }
+
+        console.log("  Order ID:", orderId);
+        console.log("  New Status:", status);
+        console.log("  Current Payment Method:", order.paymentMethod);
+        console.log("  Current Payment Status:", order.paymentStatus);
+        console.log("  Current Delivery Status:", order.status);
+
+        // Prepare update object
+        const updateData = { status };
+
+        // If status is "Delivered" and payment method is COD, mark payment as paid
+        // If status is changed to anything else for COD, mark as pending
+        // Check for COD case-insensitively and also check for "Cash on Delivery"
+        const isCOD = order.paymentMethod && (
+            order.paymentMethod.toUpperCase() === "COD" ||
+            order.paymentMethod.toLowerCase().includes("cash on delivery")
+        );
+
+        console.log("  Is COD Order?", isCOD);
+
+        if (isCOD) {
+            if (status === "Delivered") {
+                updateData.paymentStatus = "paid";
+                console.log("  ✅ COD Order Delivered - Setting payment status to PAID");
+            } else {
+                updateData.paymentStatus = "pending";
+                console.log("  ⏳ COD Order status changed to '" + status + "' - Setting payment status back to PENDING");
+            }
+        } else {
+            console.log("  ℹ️  Not a COD order - Payment status unchanged");
+        }
+
+        console.log("  Update Data:", JSON.stringify(updateData, null, 2));
+
+        // Update the order
+        const updatedOrder = await orderModel.findByIdAndUpdate(orderId, updateData, { new: true });
+
+        console.log("  ✅ Database Updated Successfully!");
+        console.log("  Updated Payment Status:", updatedOrder.paymentStatus);
+        console.log("  Updated Delivery Status:", updatedOrder.status);
+        console.log("=".repeat(60) + "\n");
+
         res.json({ success: true, message: "Status Updated" });
     } catch (error) {
-        console.log(error);
+        console.log("❌ ERROR:", error);
         res.json({ success: false, message: error.message });
     }
 });
 
+// Manual Payment Status Update (for COD orders)
+orderRouter.post("/payment-status", adminAuth, async (req, res) => {
+    try {
+        const { orderId, paymentStatus } = req.body;
+
+        console.log("\n" + "=".repeat(60));
+        console.log("💳 PAYMENT STATUS UPDATE REQUEST");
+        console.log("=".repeat(60));
+        console.log("  Order ID:", orderId);
+        console.log("  New Payment Status:", paymentStatus);
+
+        // Validate payment status
+        if (!["pending", "paid"].includes(paymentStatus)) {
+            console.log("❌ Invalid payment status!");
+            return res.json({ success: false, message: "Invalid payment status" });
+        }
+
+        // Update payment status
+        const updatedOrder = await orderModel.findByIdAndUpdate(
+            orderId,
+            { paymentStatus },
+            { new: true }
+        );
+
+        if (!updatedOrder) {
+            console.log("❌ Order not found!");
+            return res.json({ success: false, message: "Order not found" });
+        }
+
+        console.log("  ✅ Payment Status Updated Successfully!");
+        console.log("  Updated Payment Status:", updatedOrder.paymentStatus);
+        console.log("=".repeat(60) + "\n");
+
+        res.json({ success: true, message: "Payment Status Updated" });
+    } catch (error) {
+        console.log("❌ ERROR:", error);
+        res.json({ success: false, message: error.message });
+    }
+});
 
 
 // All Orders data for Frontend

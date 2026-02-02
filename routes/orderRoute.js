@@ -428,4 +428,5 @@ orderRouter.post("/userorders", authUser, async (req, res) => {
     }
 });
 
+// Endpoint removed per user request
 export default orderRouter;

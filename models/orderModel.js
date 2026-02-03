@@ -26,6 +26,7 @@ const orderSchema = new mongoose.Schema({
     },
 
     amount: Number,
+    deliveryFee: { type: Number, default: 0 },
     paymentMethod: String,
 
     paymentStatus: {

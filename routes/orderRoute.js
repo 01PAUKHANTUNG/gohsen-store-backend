@@ -4,6 +4,7 @@ import orderModel from "../models/orderModel.js";
 import userModel from "../models/userModels.js";
 import authUser from "../middelware/auth.js";
 import adminAuth from "../middelware/adminAuth.js";
+import settingsModel from "../models/settingsModel.js";
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const orderRouter = express.Router();
@@ -28,6 +29,10 @@ orderRouter.post("/place", async (req, res) => {
         const { items, address, amount } = req.body;
         const userId = getUserIdFromToken(req);
 
+        // Fetch current delivery fee
+        let settings = await settingsModel.findOne();
+        const deliveryFee = settings ? settings.deliveryFee : 20;
+
         // console.log("COD Order Request received. Total:", amount, "User:", userId || "Guest");
 
         const orderData = {
@@ -41,6 +46,7 @@ orderRouter.post("/place", async (req, res) => {
             })),
             shippingAddress: address,
             amount,
+            deliveryFee,
             paymentMethod: "COD",
             paymentStatus: "pending",
             createdAt: Date.now()
@@ -134,6 +140,10 @@ orderRouter.post("/stripe", async (req, res) => {
         const { items, address, amount } = req.body;
         const userId = getUserIdFromToken(req);
 
+        // Fetch current delivery fee
+        let settings = await settingsModel.findOne();
+        const deliveryFee = settings ? settings.deliveryFee : 20;
+
         console.log("Stripe Order Request received. Total:", amount, "User:", userId || "Guest");
 
         const mappedItems = items.map(item => ({
@@ -150,6 +160,7 @@ orderRouter.post("/stripe", async (req, res) => {
             items: mappedItems,
             shippingAddress: address,
             amount,
+            deliveryFee,
             paymentMethod: "stripe",
             paymentStatus: "pending"
         });
@@ -181,7 +192,7 @@ orderRouter.post("/stripe", async (req, res) => {
             price_data: {
                 currency: "aud",
                 product_data: { name: "Delivery Fee" },
-                unit_amount: 2000,
+                unit_amount: Math.round(deliveryFee * 100),
             },
             quantity: 1
         })

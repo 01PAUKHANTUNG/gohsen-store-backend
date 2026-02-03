@@ -8,6 +8,7 @@ import productRouter from './routes/productRoute.js'
 import cartRouter from './routes/cartRoute.js'
 import orderRouter from './routes/orderRoute.js'
 import contactRouter from './routes/contactRoute.js'
+import settingsRouter from './routes/settingsRoute.js'
 import { stripeWebhook } from './routes/stripteWebook.js'
 
 //App config
@@ -32,6 +33,7 @@ app.use('/api/product', productRouter)
 app.use('/api/cart', cartRouter)
 app.use('/api/order', orderRouter)
 app.use('/api/contact', contactRouter)
+app.use('/api/settings', settingsRouter)
 
 
 

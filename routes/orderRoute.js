@@ -353,7 +353,7 @@ orderRouter.post("/status", adminAuth, async (req, res) => {
             order.paymentMethod.toLowerCase().includes("cash on delivery")
         );
 
-        console.log("  Is COD Order?", isCOD);
+        //   console.log("  Is COD Order?", isCOD);
 
         if (isCOD) {
             if (status === "Delivered") {
@@ -367,7 +367,7 @@ orderRouter.post("/status", adminAuth, async (req, res) => {
             console.log("  ℹ️  Not a COD order - Payment status unchanged");
         }
 
-        console.log("  Update Data:", JSON.stringify(updateData, null, 2));
+        //  console.log("  Update Data:", JSON.stringify(updateData, null, 2));
 
         // Update the order
         const updatedOrder = await orderModel.findByIdAndUpdate(orderId, updateData, { new: true });
@@ -389,11 +389,11 @@ orderRouter.post("/payment-status", adminAuth, async (req, res) => {
     try {
         const { orderId, paymentStatus } = req.body;
 
-        console.log("\n" + "=".repeat(60));
-        console.log("💳 PAYMENT STATUS UPDATE REQUEST");
-        console.log("=".repeat(60));
-        console.log("  Order ID:", orderId);
-        console.log("  New Payment Status:", paymentStatus);
+        // console.log("\n" + "=".repeat(60));
+        // console.log("💳 PAYMENT STATUS UPDATE REQUEST");
+        // console.log("=".repeat(60));
+        // console.log("  Order ID:", orderId);
+        // console.log("  New Payment Status:", paymentStatus);
 
         // Validate payment status
         if (!["pending", "paid"].includes(paymentStatus)) {

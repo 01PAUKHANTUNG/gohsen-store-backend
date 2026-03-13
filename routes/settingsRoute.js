@@ -7,9 +7,11 @@ const settingsRouter = express.Router();
 // Get settings
 settingsRouter.get("/get", async (req, res) => {
     try {
+        console.log("Backend: Fetching settings...");
         let settings = await settingsModel.findOne();
+        console.log("Backend: Found settings in DB:", settings);
         if (!settings) {
-            // Create default settings if not exists
+            console.log("Backend: No settings found, creating default.");
             settings = new settingsModel({ deliveryFee: 20 });
             await settings.save();
         }
@@ -23,14 +25,17 @@ settingsRouter.get("/get", async (req, res) => {
 // Update settings (Admin)
 settingsRouter.post("/update", adminAuth, async (req, res) => {
     try {
-        const { deliveryFee } = req.body;
+        const { deliveryFee, currencies } = req.body;
+        console.log("Backend received update request:", { deliveryFee, currencies });
         let settings = await settingsModel.findOne();
         if (!settings) {
-            settings = new settingsModel({ deliveryFee });
+            settings = new settingsModel({ deliveryFee, currencies });
         } else {
-            settings.deliveryFee = deliveryFee;
+            if (deliveryFee !== undefined) settings.deliveryFee = deliveryFee;
+            if (currencies !== undefined) settings.currencies = currencies;
         }
-        await settings.save();
+        const savedSettings = await settings.save();
+        console.log("Backend saved settings:", savedSettings);
         res.json({ success: true, message: "Settings updated successfully", settings });
     } catch (error) {
         console.log(error);

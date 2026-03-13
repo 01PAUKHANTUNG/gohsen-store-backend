@@ -20,6 +20,13 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), stripeWebhoo
 app.use(express.json())
 app.use(cors())
 
+// Global Request Logger
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    if (req.method === 'POST') console.log("Body:", JSON.stringify(req.body, null, 2));
+    next();
+});
+
 connectDB();
 connectCloudinary();
 

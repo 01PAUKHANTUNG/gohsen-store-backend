@@ -8,7 +8,7 @@ const addProduct = async (req, res) => {
 
   console.log("working productIamge ")
   try {
-    const { description, price, category, subCategory, bestSelling, newArrive, stockAvaiable } = req.body
+    const { description, price, category, subCategory, bestSelling, newArrive, stockAvaiable, stockQuantity } = req.body
 
     const image1 = req.files.image1 && req.files?.image1?.[0];
     const image2 = req.files.image2 && req.files?.image2?.[0];
@@ -28,6 +28,7 @@ const addProduct = async (req, res) => {
       })
     )
 
+    const qty = Number(stockQuantity) || 0
     const productData = {
       image: imagesUrl,
       description,
@@ -35,8 +36,9 @@ const addProduct = async (req, res) => {
       subCategory,
       price: Number(price),
       bestSelling: bestSelling === "true" ? true : false,
-      stockAvaiable: stockAvaiable === "true" ? true : false,
+      stockAvaiable: qty > 0,          // auto-derived from quantity
       newArrive: newArrive === "true" ? true : false,
+      stockQuantity: qty,
       date: Date.now()
     }
 
@@ -63,7 +65,8 @@ const updateProduct = async (req, res) => {
       subCategory,
       bestSelling,
       newArrive,
-      stockAvaiable
+      stockAvaiable,
+      stockQuantity
     } = req.body
 
     const product = await productModel.findById(id)
@@ -72,13 +75,15 @@ const updateProduct = async (req, res) => {
     }
 
     /* ================= UPDATE TEXT DATA ================= */
+    const qty = Number(stockQuantity) || 0
     product.description = description
     product.price = price
     product.category = category
     product.subCategory = subCategory
     product.bestSelling = bestSelling
     product.newArrive = newArrive
-    product.stockAvaiable = stockAvaiable
+    product.stockAvaiable = qty > 0   // auto-derived from quantity
+    product.stockQuantity = qty
     product.date = Date.now()
 
 

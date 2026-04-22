@@ -5,6 +5,7 @@ import userModel from "../models/userModels.js";
 import authUser from "../middelware/auth.js";
 import adminAuth from "../middelware/adminAuth.js";
 import settingsModel from "../models/settingsModel.js";
+import productModel from "../models/productModels.js";
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const orderRouter = express.Router();
@@ -22,6 +23,34 @@ const getUserIdFromToken = (req) => {
 };
 
 import jwt from 'jsonwebtoken';
+
+// ─── Stock Validation + Deduction Helper ─────────────────────────────────────
+// Checks that every item has sufficient stock, then atomically decrements each.
+// Returns { success: false, message } on failure, or { success: true } on pass.
+const validateAndDeductStock = async (items) => {
+    for (const item of items) {
+        const product = await productModel.findById(item._id);
+        if (!product) {
+            return { success: false, message: `Product not found: ${item.name || item._id}` };
+        }
+        if (product.stockQuantity < item.quantity) {
+            return {
+                success: false,
+                message: `Not enough stock for "${product.description}". Only ${product.stockQuantity} left in stock.`
+            };
+        }
+    }
+    // All items passed — now atomically deduct
+    for (const item of items) {
+        await productModel.findByIdAndUpdate(
+            item._id,
+            { $inc: { stockQuantity: -item.quantity } }
+        );
+    }
+    return { success: true };
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 // Placing order using COD Method
 orderRouter.post("/place", async (req, res) => {
@@ -53,6 +82,13 @@ orderRouter.post("/place", async (req, res) => {
         }
 
         const newOrder = new orderModel(orderData);
+
+        // Validate and deduct stock before saving order
+        const stockCheck = await validateAndDeductStock(orderData.items);
+        if (!stockCheck.success) {
+            return res.json({ success: false, message: stockCheck.message });
+        }
+
         await newOrder.save();
 
         // Clear Cart on Backend ONLY if user resides
@@ -106,6 +142,12 @@ orderRouter.post("/stripe-intent", async (req, res) => {
             image: Array.isArray(item.image) ? item.image[0] : item.image
         }));
 
+        // Validate and deduct stock before creating order
+        const stockCheck = await validateAndDeductStock(mappedItems);
+        if (!stockCheck.success) {
+            return res.json({ success: false, message: stockCheck.message });
+        }
+
         const newOrder = new orderModel({
             userId,
             items: mappedItems,
@@ -155,6 +197,12 @@ orderRouter.post("/stripe", async (req, res) => {
         }));
 
         // 1️⃣ Create order FIRST (pending)
+        // Validate and deduct stock before creating order
+        const stockCheck = await validateAndDeductStock(mappedItems);
+        if (!stockCheck.success) {
+            return res.json({ success: false, message: stockCheck.message });
+        }
+
         const order = await orderModel.create({
             userId,
             items: mappedItems,
